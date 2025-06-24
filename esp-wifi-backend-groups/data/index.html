@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>ESP32 WiFi Setup</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body { font-family: Arial; margin: 20px; }
+    .card { max-width: 400px; margin: 0 auto; padding: 20px; border: 1px solid #ccc; border-radius: 5px; }
+    input { width: 100%; padding: 8px; margin: 8px 0; box-sizing: border-box; }
+    input[type=submit] { background-color: #4CAF50; color: white; border: none; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h2>ESP32 WiFi Setup</h2>
+    <form action="/save" method="POST">
+      <label>WiFi Name:</label>
+      <input type="text" name="ssid" required>
+      <label>WiFi Password:</label>
+      <input type="password" name="password">
+      <input type="submit" value="Save and Connect">
+    </form>
+  </div>
+</body>
+</html>

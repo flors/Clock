@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>ESP32 Configuration</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body>
+  <h1>Device Configuration</h1>
+  <form action="/saveconfig" method="post">
+    Server IP: <input type="text" name="serverip" value="{{serverIP}}"><br>
+    Server Port: <input type="number" name="serverport" value="{{serverPort}}"><br>
+    Device ID: <input type="text" name="deviceid" value="{{deviceId}}"><br>
+    Group ID: <input type="text" name="groupid" value="{{groupId}}"><br>
+    <input type="submit" value="Save">
+  </form>
+  <a href="/">Back to WiFi Setup</a>
+</body>
+</html>

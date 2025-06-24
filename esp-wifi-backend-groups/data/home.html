@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>ESP32 Device</title>
+  <meta name='viewport' content='width=device-width, initial-scale=1'>
+  <style>
+    body {
+      font-family: Arial;
+      margin: 20px;
+      line-height: 1.6;
+    }
+    .panel {
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      padding: 15px;
+      margin-bottom: 20px;
+    }
+    h1 {
+      color: #0066cc;
+    }
+    .status-indicator {
+      display: inline-block;
+      width: 15px;
+      height: 15px;
+      border-radius: 50%;
+      margin-right: 5px;
+    }
+    .status-on {
+      background-color: #28a745;
+    }
+    .status-off {
+      background-color: #dc3545;
+    }
+    a {
+      display: inline-block;
+      background: #0066cc;
+      color: white;
+      padding: 10px 15px;
+      text-decoration: none;
+      border-radius: 4px;
+      margin-top: 10px;
+      margin-right: 5px;
+    }
+  </style>
+</head>
+<body>
+  <h1>ESP32 IoT Device</h1>
+  
+  <div class='panel'>
+    <h2>Device Information</h2>
+    <p><strong>Device ID:</strong> {{deviceId}}</p>
+    <p><strong>Group ID:</strong> {{groupId}}</p>
+    <p>
+      <strong>Sensor Status:</strong> 
+      <span class="status-indicator {{sensorState === 'ON' ? 'status-on' : 'status-off'}}"></span>
+      {{sensorState}}
+    </p>
+  </div>
+  
+  <div class='panel'>
+    <h2>Network Information</h2>
+    <p><strong>Status:</strong> {{wifiStatus}}</p>
+    {{wifiDetails}}
+  </div>
+  
+  <div class='panel'>
+    <h2>Server Information</h2>
+    <p><strong>Server IP:</strong> {{serverIP}}</p>
+    <p><strong>Server Port:</strong> {{serverPort}}</p>
+  </div>
+  
+  <a href='/wifi'>WiFi Configuration</a>
+  <a href='/config'>Device Configuration</a>
+  <a href='/reset'>Reset Device</a>
+</body>
+</html>

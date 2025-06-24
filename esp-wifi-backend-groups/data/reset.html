@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Reset Configuration</title>
+  <meta name='viewport' content='width=device-width, initial-scale=1'>
+  <style>
+    body {
+      font-family: Arial;
+      margin: 20px;
+      line-height: 1.6;
+    }
+    .panel {
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      padding: 15px;
+      margin-bottom: 20px;
+      text-align: center;
+    }
+    h1 {
+      color: #0066cc;
+    }
+    .warning {
+      color: #721c24;
+      background-color: #f8d7da;
+      padding: 15px;
+      border-radius: 4px;
+      margin-bottom: 20px;
+    }
+    a {
+      display: inline-block;
+      padding: 10px 15px;
+      text-decoration: none;
+      border-radius: 4px;
+      margin: 10px 5px;
+    }
+    .danger {
+      background: #dc3545;
+      color: white;
+    }
+    .safe {
+      background: #28a745;
+      color: white;
+    }
+  </style>
+</head>
+<body>
+  <div class="panel">
+    <h1>Reset Configuration</h1>
+    <div class="warning">
+      <p><strong>Warning:</strong> This will reset all device settings including WiFi credentials.</p>
+      <p>Are you sure you want to continue?</p>
+    </div>
+    <a href="/confirmreset" class="danger">Yes, Reset Everything</a>
+    <a href="/" class="safe">No, Go Back</a>
+  </div>
+</body>
+</html>
