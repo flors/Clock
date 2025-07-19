@@ -9,12 +9,16 @@
 #include <FastLED.h>
 
 //----------------------
-#define NUM_LEDS 30
-#define DATA_PIN 27
+#define NUM_LEDS_IN 30
+#define DATA_PIN_IN 27
+#define DATA_PIN_OUT 26
+
 
 // Define the array of leds
-CRGB leds[NUM_LEDS];
+CRGB ledsIN[NUM_LEDS_IN];
+CRGB ledsOUT[NUM_LEDS_IN];
 
+bool ledsOutAreOff;
 
 
 // Define a GPIO pin for the reset button
@@ -117,12 +121,28 @@ bool readSensor() {
   return currentSensorState;
 }
 
-// Control the LED based on group status
+bool activeLedsOut;
+
+// Control the LED based on group status --> this should turn LEDS OUT ON/OFF!!!!
 void updateLED(bool shouldBeOn) {
   if (ledState != shouldBeOn) {
     ledState = shouldBeOn;
-    digitalWrite(LED_PIN, ledState ? HIGH : LOW);
-    Serial.println("LED state changed: " + String(ledState ? "ON" : "OFF") + " (pin " + String(LED_PIN) + ") - triggered by group activity");
+
+    if (ledState) {
+      digitalWrite(LED_PIN, HIGH);
+      Serial.println("LED state changed: " + String("ON") + " (pin " + String(LED_PIN) + ") - triggered by group activity");
+      activeLedsOut = true;
+      ledsOutAreOff = false;
+      turnAllLedsOutWhite();
+    } else {
+
+      digitalWrite(LED_PIN, LOW);
+      activeLedsOut = false;
+      Serial.println("LED state changed: " + String("OFF") + " (pin " + String(LED_PIN) + ") - triggered by group activity");
+      turnAllLedsOutOff();
+    }
+    /*digitalWrite(LED_PIN, ledState ? HIGH : LOW);
+    Serial.println("LED state changed: " + String(ledState ? "ON" : "OFF") + " (pin " + String(LED_PIN) + ") - triggered by group activity");*/
   }
 }
 
@@ -470,49 +490,116 @@ bool checkForReset() {
 void BlinkLeds() {
 
   // Turn the LED on, then pause
-  leds[0] = CRGB::Red;
+  ledsIN[0] = CRGB::Red;
   FastLED.show();
   delay(500);
   // Now turn the LED off, then pause
-  leds[0] = CRGB::Black;
+  ledsIN[0] = CRGB::Black;
   FastLED.show();
   delay(500);
 }
 
-void fadeall() { for(int i = 0; i < NUM_LEDS; i++) { leds[i].nscale8(250); } }
-
-
-void CylonLeds(){
-
-  static uint8_t hue = 0;
-	Serial.print("x");
-	// First slide the led in one direction
-	for(int i = 0; i < NUM_LEDS; i++) {
-		// Set the i'th led to red 
-		leds[i] = CHSV(hue++, 255, 255);
-		// Show the leds
-		FastLED.show(); 
-		// now that we've shown the leds, reset the i'th led to black
-		// leds[i] = CRGB::Black;
-		fadeall();
-		// Wait a little bit before we loop around and do it again
-		delay(10);
-	}
-	Serial.print("x");
-
-	// Now go in the other direction.  
-	for(int i = (NUM_LEDS)-1; i >= 0; i--) {
-		// Set the i'th led to red 
-		leds[i] = CHSV(hue++, 255, 255);
-		// Show the leds
-		FastLED.show();
-		// now that we've shown the leds, reset the i'th led to black
-		// leds[i] = CRGB::Black;
-		fadeall();
-		// Wait a little bit before we loop around and do it again
-		delay(10);
-	}
+void fadeall() {
+  for (int i = 0; i < NUM_LEDS_IN; i++) { ledsIN[i].nscale8(250); }
 }
+
+
+void turnAllLedsOutWhite() {
+  // Loop through each LED in the strip
+  for (int i = 0; i < NUM_LEDS_IN; i++) {
+    // Set the color of the current LED to white
+    ledsOUT[i] = CRGB::White;
+  }
+  // Update the LED strip to display the changes
+  FastLED.show();
+}
+
+
+
+// Define a global variable to store the last time the LED was updated
+unsigned long previousMillis = 0;
+// Define the interval for the LED updates (10 milliseconds)
+const long interval = 10;
+
+// Define a state variable for the Cylon animation
+// 0: moving right, 1: moving left
+static int cylonDirection = 0;
+// Define a variable to keep track of the current LED index
+static int cylonIndex = 0;
+// Define a static hue for the Cylon effect
+static uint8_t cylonHue = 0;
+
+void CylonLeds() {
+  unsigned long currentMillis = millis();
+
+  if (currentMillis - previousMillis >= interval) {
+    previousMillis = currentMillis;  // Save the last time you updated the LED
+
+    Serial.print("x");  // This will print every 'interval' milliseconds now
+
+    if (cylonDirection == 0) {  // Moving right
+      // Reset the previous LED to black or fade it
+      // if (cylonIndex > 0) {
+      //   leds[cylonIndex - 1] = CRGB::Black; // Or use fadeall()
+      // }
+      fadeall();  // Apply fadeall to the entire strip
+
+      // Set the current LED
+      ledsIN[cylonIndex] = CHSV(cylonHue++, 255, 255);
+      FastLED.show();
+
+      cylonIndex++;
+      if (cylonIndex >= NUM_LEDS_IN) {
+        cylonIndex = cylonIndex = NUM_LEDS_IN - 1;  // Set starting point for reverse pass
+        cylonDirection = 1;                         // Change direction to left
+      }
+    } else {  // Moving left
+      // Reset the previous LED to black or fade it
+      // if (cylonIndex < NUM_LEDS_IN - 1) {
+      //   leds[cylonIndex + 1] = CRGB::Black; // Or use fadeall()
+      // }
+      fadeall();  // Apply fadeall to the entire strip
+
+      // Set the current LED
+      ledsIN[cylonIndex] = CHSV(cylonHue++, 255, 255);
+      FastLED.show();
+
+      cylonIndex--;
+      if (cylonIndex < 0) {
+        cylonIndex = NUM_LEDS_IN - 1;  // Reset index for next pass
+        cylonDirection = 0;            // Change direction to right
+      }
+    }
+  }
+}
+
+
+bool ledsInAreOff;
+
+void turnAllLedsOff() {
+
+  if (!ledsInAreOff) {
+    for (int i = 0; i < NUM_LEDS_IN; i++) {
+      ledsIN[i] = CRGB::Black;  // Set each LED to black
+    }
+    FastLED.show();  // Update the LED strip to reflect the changes
+    ledsInAreOff = true;
+  }
+}
+
+
+
+void turnAllLedsOutOff() {
+
+  if (!ledsOutAreOff) {
+    for (int i = 0; i < NUM_LEDS_IN; i++) {
+      ledsOUT[i] = CRGB::Black;  // Set each LED to black
+    }
+    FastLED.show();  // Update the LED strip to reflect the changes
+    ledsOutAreOff = true;
+  }
+}
+
 
 
 void setup() {
@@ -610,7 +697,14 @@ void setup() {
   setupWebServer();
 
   //Init LEDs
-  FastLED.addLeds<NEOPIXEL, DATA_PIN>(leds, NUM_LEDS);
+  FastLED.addLeds<NEOPIXEL, DATA_PIN_IN>(ledsIN, NUM_LEDS_IN);
+  FastLED.addLeds<NEOPIXEL, DATA_PIN_OUT>(ledsOUT, NUM_LEDS_IN);
+
+  ledsOutAreOff = false;
+  turnAllLedsOutOff();
+
+  ledsInAreOff = false;
+  turnAllLedsOff();
 }
 
 void loop() {
@@ -660,7 +754,12 @@ void loop() {
   }
 
   // Always read sensor (in case we need it for web interface)
-  readSensor();
-  //Leds();
-  CylonLeds();
+  bool sensorON = readSensor();
+
+  if (sensorON) {
+    CylonLeds();
+    ledsInAreOff = false;
+  } else {
+    turnAllLedsOff();
+  }
 }
