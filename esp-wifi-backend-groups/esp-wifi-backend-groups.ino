@@ -13,6 +13,30 @@
 #define DATA_PIN_IN 27
 #define DATA_PIN_OUT 26
 
+// ============================================================
+// CONEXIÓN - Efecto de presencia y encuentro
+// Tira INTERIOR (ledsIN)  → tu presencia → Naranja cálido
+// Tira EXTERIOR (ledsOUT) → la otra persona → Rosa/magenta
+// Cuando coinciden → pulso conjunto más intenso
+// Sin delays, basado en millis()
+// ============================================================
+
+// Parámetros de respiración
+const float BREATH_PERIOD_MS  = 4000.0;  // Ciclo completo en ms
+const float PHASE_OFFSET      = 0.4;     // Desfase orgánico entre tiras
+const uint8_t MIN_BRIGHT      = 8;       // Mínimo brillo (casi apagado)
+const uint8_t MAX_BRIGHT_SOLO = 180;     // Brillo máximo en solitario
+const uint8_t MAX_BRIGHT_BOTH = 255;     // Brillo máximo al coincidir
+const float   FADE_SPEED      = 3.0;     // Velocidad de fade al apagar
+
+// Colores base
+const CRGB COLOR_IN  = CRGB(255, 80, 10);   // Naranja cálido (tú)
+const CRGB COLOR_OUT = CRGB(255, 20, 120);  // Rosa/magenta (la otra persona)
+
+// Estado interno de brillo (float para fade suave)
+float fadeIN  = 0.0;
+float fadeOUT = 0.0;
+
 
 // Define the array of leds
 CRGB ledsIN[NUM_LEDS_IN];
@@ -54,7 +78,7 @@ String staSSID;
 String staPassword;
 
 // Backend server settings - Change these to match your server
-String serverIP = "esp-backend-f4e8.onrender.com";  // Your Render URL (without https://)
+String serverIP = "esp-backend-8qzm.onrender.com";  // Your Render URL (without https://)
 int serverPort = 443;                               // HTTPS port for Render
 String deviceId = "esp32-001";                      // Unique ID for this device
 String groupId = "group-001";                       // Group ID for this device
@@ -125,25 +149,7 @@ bool activeLedsOut;
 
 // Control the LED based on group status --> this should turn LEDS OUT ON/OFF!!!!
 void updateLED(bool shouldBeOn) {
-  if (ledState != shouldBeOn) {
     ledState = shouldBeOn;
-
-    if (ledState) {
-      digitalWrite(LED_PIN, HIGH);
-      Serial.println("LED state changed: " + String("ON") + " (pin " + String(LED_PIN) + ") - triggered by group activity");
-      activeLedsOut = true;
-      ledsOutAreOff = false;
-      turnAllLedsOutWhite();
-    } else {
-
-      digitalWrite(LED_PIN, LOW);
-      activeLedsOut = false;
-      Serial.println("LED state changed: " + String("OFF") + " (pin " + String(LED_PIN) + ") - triggered by group activity");
-      turnAllLedsOutOff();
-    }
-    /*digitalWrite(LED_PIN, ledState ? HIGH : LOW);
-    Serial.println("LED state changed: " + String(ledState ? "ON" : "OFF") + " (pin " + String(LED_PIN) + ") - triggered by group activity");*/
-  }
 }
 
 // Read a file from SPIFFS
@@ -487,91 +493,80 @@ bool checkForReset() {
 }
 
 
-void BlinkLeds() {
+void updateLedEffect(bool myState, bool otherState) {
+  unsigned long now = millis();
+  bool bothON = myState && otherState;
 
-  // Turn the LED on, then pause
-  ledsIN[0] = CRGB::Red;
-  FastLED.show();
-  delay(500);
-  // Now turn the LED off, then pause
-  ledsIN[0] = CRGB::Black;
-  FastLED.show();
-  delay(500);
-}
+  // Brillo máximo según si están solos o juntos
+  uint8_t maxIN  = bothON ? MAX_BRIGHT_BOTH : MAX_BRIGHT_SOLO;
+  uint8_t maxOUT = bothON ? MAX_BRIGHT_BOTH : MAX_BRIGHT_SOLO;
 
-void fadeall() {
-  for (int i = 0; i < NUM_LEDS_IN; i++) { ledsIN[i].nscale8(250); }
-}
+  // Calcular fase de respiración
+  float t = (now % (unsigned long)BREATH_PERIOD_MS) / BREATH_PERIOD_MS;
+  float angleIN  = t * 2.0 * PI;
+  float angleOUT = angleIN + PHASE_OFFSET;
 
+  // Curva sinusoidal suavizada (más natural que lineal)
+  float sinIN  = (1.0 - cos(angleIN))  / 2.0;
+  float sinOUT = (1.0 - cos(angleOUT)) / 2.0;
 
-void turnAllLedsOutWhite() {
-  // Loop through each LED in the strip
-  for (int i = 0; i < NUM_LEDS_IN; i++) {
-    // Set the color of the current LED to white
-    ledsOUT[i] = CRGB::White;
-  }
-  // Update the LED strip to display the changes
-  FastLED.show();
-}
+  // ---- TIRA INTERIOR (tu presencia) ----
+  if (myState) {
+    uint8_t bIN = MIN_BRIGHT + (uint8_t)(sinIN * (maxIN - MIN_BRIGHT));
 
+    // Si ambos ON: añadir pulso extra encima de la respiración
+    if (bothON) {
+      float pulse = (1.0 - cos(angleIN * 2.0)) / 2.0; // doble frecuencia
+      bIN = min(255, (int)bIN + (int)(pulse * 40));
+    }
 
+    fadeIN = bIN;
+    CRGB cIN = COLOR_IN;
+    cIN.nscale8((uint8_t)fadeIN);
+    fill_solid(ledsIN, NUM_LEDS_IN, cIN);
 
-// Define a global variable to store the last time the LED was updated
-unsigned long previousMillis = 0;
-// Define the interval for the LED updates (10 milliseconds)
-const long interval = 10;
-
-// Define a state variable for the Cylon animation
-// 0: moving right, 1: moving left
-static int cylonDirection = 0;
-// Define a variable to keep track of the current LED index
-static int cylonIndex = 0;
-// Define a static hue for the Cylon effect
-static uint8_t cylonHue = 0;
-
-void CylonLeds() {
-  unsigned long currentMillis = millis();
-
-  if (currentMillis - previousMillis >= interval) {
-    previousMillis = currentMillis;  // Save the last time you updated the LED
-
-    Serial.print("x");  // This will print every 'interval' milliseconds now
-
-    if (cylonDirection == 0) {  // Moving right
-      // Reset the previous LED to black or fade it
-      // if (cylonIndex > 0) {
-      //   leds[cylonIndex - 1] = CRGB::Black; // Or use fadeall()
-      // }
-      fadeall();  // Apply fadeall to the entire strip
-
-      // Set the current LED
-      ledsIN[cylonIndex] = CHSV(cylonHue++, 255, 255);
-      FastLED.show();
-
-      cylonIndex++;
-      if (cylonIndex >= NUM_LEDS_IN) {
-        cylonIndex = cylonIndex = NUM_LEDS_IN - 1;  // Set starting point for reverse pass
-        cylonDirection = 1;                         // Change direction to left
-      }
-    } else {  // Moving left
-      // Reset the previous LED to black or fade it
-      // if (cylonIndex < NUM_LEDS_IN - 1) {
-      //   leds[cylonIndex + 1] = CRGB::Black; // Or use fadeall()
-      // }
-      fadeall();  // Apply fadeall to the entire strip
-
-      // Set the current LED
-      ledsIN[cylonIndex] = CHSV(cylonHue++, 255, 255);
-      FastLED.show();
-
-      cylonIndex--;
-      if (cylonIndex < 0) {
-        cylonIndex = NUM_LEDS_IN - 1;  // Reset index for next pass
-        cylonDirection = 0;            // Change direction to right
-      }
+  } else {
+    // Fade suave a negro
+    if (fadeIN > 0) {
+      fadeIN = max(0.0f, fadeIN - FADE_SPEED);
+      CRGB cIN = COLOR_IN;
+      cIN.nscale8((uint8_t)fadeIN);
+      fill_solid(ledsIN, NUM_LEDS_IN, cIN);
+    } else {
+      fill_solid(ledsIN, NUM_LEDS_IN, CRGB::Black);
     }
   }
+
+  // ---- TIRA EXTERIOR (la otra persona) ----
+  if (otherState) {
+    uint8_t bOUT = MIN_BRIGHT + (uint8_t)(sinOUT * (maxOUT - MIN_BRIGHT));
+
+    // Si ambos ON: pulso extra también en exterior
+    if (bothON) {
+      float pulse = (1.0 - cos(angleOUT * 2.0)) / 2.0;
+      bOUT = min(255, (int)bOUT + (int)(pulse * 40));
+    }
+
+    fadeOUT = bOUT;
+    CRGB cOUT = COLOR_OUT;
+    cOUT.nscale8((uint8_t)fadeOUT);
+    fill_solid(ledsOUT, NUM_LEDS_IN, cOUT);
+
+  } else {
+    // Fade suave a negro
+    if (fadeOUT > 0) {
+      fadeOUT = max(0.0f, fadeOUT - FADE_SPEED);
+      CRGB cOUT = COLOR_OUT;
+      cOUT.nscale8((uint8_t)fadeOUT);
+      fill_solid(ledsOUT, NUM_LEDS_IN, cOUT);
+    } else {
+      fill_solid(ledsOUT, NUM_LEDS_IN, CRGB::Black);
+    }
+  }
+
+  FastLED.show();
 }
+
 
 
 bool ledsInAreOff;
@@ -755,11 +750,5 @@ void loop() {
 
   // Always read sensor (in case we need it for web interface)
   bool sensorON = readSensor();
-
-  if (sensorON) {
-    CylonLeds();
-    ledsInAreOff = false;
-  } else {
-    turnAllLedsOff();
-  }
+  updateLedEffect(sensorON, ledState);
 }
