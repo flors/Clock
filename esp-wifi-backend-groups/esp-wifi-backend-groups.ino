@@ -99,6 +99,37 @@ bool ledState = false;
 // Flag to track if initial status has been sent
 bool initialStatusSent = false;
 
+
+// ============================================================
+// TAREA HTTP - Corre en Core 1 separado
+// ============================================================
+
+TaskHandle_t httpTaskHandle = NULL;
+
+void httpTask(void* parameter) {
+  for (;;) {
+    if (WiFi.status() == WL_CONNECTED) {
+      unsigned long currentMillis = millis();
+
+      // Enviar datos del sensor
+      if (!initialStatusSent) {
+        sendDataViaHTTP();
+      } else if (currentMillis - lastSendTime >= sendInterval) {
+        lastSendTime = currentMillis;
+        sendDataViaHTTP();
+      }
+
+      // Poll group status
+      if (initialStatusSent && currentMillis - lastGroupPollTime >= groupPollInterval) {
+        lastGroupPollTime = currentMillis;
+        pollGroupStatus();
+      }
+    }
+    vTaskDelay(100 / portTICK_PERIOD_MS); // Cede CPU cada 100ms
+  }
+}
+
+
 // Initialize the sensor pin and LED pin
 void setupSensor() {
   pinMode(SENSOR_PIN, INPUT_PULLUP);  // Use pull-up for a button
@@ -691,17 +722,49 @@ void setup() {
   // Setup the web server (for both AP and STA modes)
   setupWebServer();
 
-  //Init LEDs
+ // Init LEDs
   FastLED.addLeds<NEOPIXEL, DATA_PIN_IN>(ledsIN, NUM_LEDS_IN);
   FastLED.addLeds<NEOPIXEL, DATA_PIN_OUT>(ledsOUT, NUM_LEDS_IN);
 
   ledsOutAreOff = false;
   turnAllLedsOutOff();
-
   ledsInAreOff = false;
   turnAllLedsOff();
+
+  // Lanzar tarea HTTP en Core 1
+  xTaskCreatePinnedToCore(
+    httpTask,        // Función
+    "httpTask",      // Nombre
+    8192,            // Stack size
+    NULL,            // Parámetro
+    1,               // Prioridad
+    &httpTaskHandle, // Handle
+    1                // Core 1
+  );
 }
 
+void loop() {
+  // Serial commands
+  if (Serial.available() > 0) {
+    String command = Serial.readStringUntil('\n');
+    command.trim();
+    if (command == "reset") {
+      preferences.clear();
+      delay(1000);
+      ESP.restart();
+    }
+  }
+
+  // DNS y web server
+  if (isAPMode) dnsServer.processNextRequest();
+  server.handleClient();
+
+  // Solo LEDs - sin interrupciones HTTP
+  bool sensorON = readSensor();
+  updateLedEffect(sensorON, ledState);
+}
+
+/*
 void loop() {
   // Check for serial commands
   if (Serial.available() > 0) {
@@ -751,4 +814,4 @@ void loop() {
   // Always read sensor (in case we need it for web interface)
   bool sensorON = readSensor();
   updateLedEffect(sensorON, ledState);
-}
+}*/
